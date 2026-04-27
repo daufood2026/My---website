@@ -1,97 +1,121 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Map tìm địa chỉ</title>
+  <title>Map tìm địa chỉ (by_htl_Turtle)</title>
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
     body { font-family: Arial; }
     #map { height: 500px; margin-top: 10px; }
-    input { width: 300px; padding: 5px; }
-    button { padding: 6px 10px; }
+    input { width: 300px; padding: 5px; margin: 3px; }
+    button { padding: 6px 10px; margin: 5px; }
   </style>
 </head>
 
 <body>
 
-<h3>Map tìm địa chỉ (by HTL_Turtle)</h3>
+<h3>🚚 Map tìm địa chỉ (by_htl_Turtle)</h3>
 
-<input id="address" placeholder="Nhập địa chỉ (vd: Times City Hà Nội)">
-<button onclick="searchLocation()">Tìm</button>
+<input id="addr1" placeholder="Điểm 1"><br>
+<input id="addr2" placeholder="Điểm 2"><br>
+<input id="addr3" placeholder="Điểm 3"><br>
+
+<button onclick="buildRoute()">Vẽ route</button>
 
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-// ===== 1. KHỞI TẠO MAP =====
-var map = L.map('map').setView([21.0285, 105.8542], 13);
+// ===== MAP =====
+var map = L.map('map').setView([21.0285, 105.8542], 12);
 
-// ===== 2. LOAD BẢN ĐỒ =====
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap'
 }).addTo(map);
 
-// ===== 3. MARKER BAN ĐẦU =====
-var currentMarker = L.marker([21.0285, 105.8542])
-  .addTo(map)
-  .bindPopup("Trung tâm Hà Nội")
-  .openPopup();
+let markers = [];
+let routeLine;
 
-// ===== 4. HÀM TÌM ĐỊA CHỈ =====
-async function searchLocation() {
-  const address = document.getElementById("address").value;
+// ===== GEOCODE =====
+async function geocode(address) {
+  const res = await fetch(
+    "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(address)
+  );
+  const data = await res.json();
 
-  if (!address) {
-    alert("Vui lòng nhập địa chỉ");
+  if (data.length === 0) return null;
+
+  return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+}
+
+// ===== BUILD ROUTE =====
+async function buildRoute() {
+
+  const inputs = [
+    document.getElementById("addr1").value,
+    document.getElementById("addr2").value,
+    document.getElementById("addr3").value
+  ].filter(x => x);
+
+  if (inputs.length < 2) {
+    alert("Nhập ít nhất 2 điểm");
     return;
   }
 
-  try {
-    const res = await fetch(
-      "https://nominatim.openstreetmap.org/search?format=json&q=" 
-      + encodeURIComponent(address)
-    );
+  // clear cũ
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
 
-    const data = await res.json();
+  if (routeLine) {
+    map.removeLayer(routeLine);
+  }
 
-    if (data.length === 0) {
-      alert("Không tìm thấy địa chỉ");
+  let points = [];
+
+  for (let addr of inputs) {
+    const p = await geocode(addr);
+    if (!p) {
+      alert("Không tìm thấy: " + addr);
       return;
     }
+    points.push(p);
+  }
 
-    const lat = data[0].lat;
-    const lon = data[0].lon;
+  // ===== SORT GẦN → XA (đơn giản) =====
+  const start = points[0];
 
-    // Di chuyển map
-    map.setView([lat, lon], 16);
+  points.sort((a, b) => {
+    const da = distance(start, a);
+    const db = distance(start, b);
+    return da - db;
+  });
 
-    // Xóa marker cũ
-    if (currentMarker) {
-      map.removeLayer(currentMarker);
-    }
-
-    // Thêm marker mới
-    currentMarker = L.marker([lat, lon])
+  // ===== MARKER + SỐ THỨ TỰ =====
+  points.forEach((p, i) => {
+    const marker = L.marker(p)
       .addTo(map)
-      .bindPopup(address)
+      .bindPopup("Điểm " + (i + 1))
       .openPopup();
 
-  } catch (err) {
-    console.error(err);
-    alert("Lỗi khi tìm địa chỉ");
-  }
+    markers.push(marker);
+  });
+
+  // ===== VẼ ĐƯỜNG =====
+  routeLine = L.polyline(points, { color: 'blue' }).addTo(map);
+
+  map.fitBounds(routeLine.getBounds());
 }
 
-// ===== 5. NHẤN ENTER ĐỂ TÌM =====
-document.getElementById("address").addEventListener("keypress", function(e) {
-  if (e.key === "Enter") {
-    searchLocation();
-  }
-});
+// ===== TÍNH KHOẢNG CÁCH =====
+function distance(a, b) {
+  return Math.sqrt(
+    Math.pow(a[0] - b[0], 2) +
+    Math.pow(a[1] - b[1], 2)
+  );
+}
+
 </script>
 
 </body>
