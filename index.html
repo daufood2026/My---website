@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Route giao hàng by ĐậuHoàng</title>
+  <title>Route giao hàng by_turtle1</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -16,16 +16,9 @@
       display: block;
     }
 
-    button {
-      padding: 6px 12px;
-      margin: 5px;
-      cursor: pointer;
-    }
+    button { padding: 6px 12px; margin: 5px; }
 
-    #info {
-      margin-top: 10px;
-      font-weight: bold;
-    }
+    #info { margin-top: 10px; font-weight: bold; }
 
     .number-marker {
       background: red;
@@ -36,14 +29,13 @@
       width: 30px;
       height: 30px;
       font-weight: bold;
-      border: 2px solid white;
     }
   </style>
 </head>
 
 <body>
 
-<h3>🚚 Route giao hàng (by ĐậuHoàng)</h3>
+<h3>🚚 Route tối ưu (by_turtle1)</h3>
 
 <div id="inputs"></div>
 
@@ -78,10 +70,8 @@ function addPoint() {
   document.getElementById("inputs").appendChild(input);
 }
 
-// tạo sẵn 3 điểm
-addPoint();
-addPoint();
-addPoint();
+// mặc định 3 điểm
+addPoint(); addPoint(); addPoint();
 
 // ===== GEOCODE =====
 async function geocode(address) {
@@ -89,35 +79,67 @@ async function geocode(address) {
     "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(address)
   );
   const data = await res.json();
-
   if (data.length === 0) return null;
-
   return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
 }
 
-// ===== ICON SỐ =====
+// ===== ICON =====
 function createNumberIcon(number) {
   return L.divIcon({
-    className: '',
     html: `<div class="number-marker">${number}</div>`,
     iconSize: [30, 30]
   });
 }
 
-// ===== VẼ ROUTE THẬT =====
-async function drawRealRoute(points) {
+// ===== DISTANCE =====
+function distance(a, b) {
+  return Math.sqrt(
+    (a[0]-b[0])**2 + (a[1]-b[1])**2
+  );
+}
 
-  const coords = points.map(p => p[1] + "," + p[0]).join(";");
+// ===== GREEDY OPTIMIZE =====
+function optimizeRoute(points, addresses) {
+
+  let orderedPoints = [points[0]];
+  let orderedAddresses = [addresses[0]];
+
+  let remainingPoints = points.slice(1);
+  let remainingAddr = addresses.slice(1);
+
+  while (remainingPoints.length > 0) {
+    let last = orderedPoints[orderedPoints.length - 1];
+
+    let minIndex = 0;
+    let minDist = distance(last, remainingPoints[0]);
+
+    for (let i = 1; i < remainingPoints.length; i++) {
+      let d = distance(last, remainingPoints[i]);
+      if (d < minDist) {
+        minDist = d;
+        minIndex = i;
+      }
+    }
+
+    orderedPoints.push(remainingPoints[minIndex]);
+    orderedAddresses.push(remainingAddr[minIndex]);
+
+    remainingPoints.splice(minIndex, 1);
+    remainingAddr.splice(minIndex, 1);
+  }
+
+  return { orderedPoints, orderedAddresses };
+}
+
+// ===== OSRM ROUTE =====
+async function drawRoute(points) {
+
+  const coords = points.map(p => p[1]+","+p[0]).join(";");
 
   const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
 
   const res = await fetch(url);
   const data = await res.json();
-
-  if (!data.routes || data.routes.length === 0) {
-    alert("Không vẽ được route");
-    return;
-  }
 
   const route = data.routes[0];
 
@@ -129,13 +151,11 @@ async function drawRealRoute(points) {
 
   map.fitBounds(routeLine.getBounds());
 
-  // ===== KM =====
-  const km = (route.distance / 1000).toFixed(2);
   document.getElementById("info").innerText =
-    "Tổng quãng đường: " + km + " km";
+    "Tổng quãng đường: " + (route.distance/1000).toFixed(2) + " km";
 }
 
-// ===== BUILD ROUTE =====
+// ===== BUILD =====
 async function buildRoute() {
 
   const inputs = document.querySelectorAll(".point-input");
@@ -150,7 +170,6 @@ async function buildRoute() {
     return;
   }
 
-  // clear cũ
   markers.forEach(m => map.removeLayer(m));
   markers = [];
   if (routeLine) map.removeLayer(routeLine);
@@ -166,22 +185,23 @@ async function buildRoute() {
     points.push(p);
   }
 
-  // ===== MARKER + POPUP =====
-  points.forEach((p, i) => {
+  // ===== OPTIMIZE =====
+  const { orderedPoints, orderedAddresses } =
+    optimizeRoute(points, addresses);
+
+  // ===== MARKER =====
+  orderedPoints.forEach((p, i) => {
     const marker = L.marker(p, {
-      icon: createNumberIcon(i + 1)
+      icon: createNumberIcon(i+1)
     })
     .addTo(map)
-    .bindPopup(`
-      <b>🚚 Điểm ${i + 1}</b><br>
-      📍 ${addresses[i]}
-    `);
+    .bindPopup(`<b>Điểm ${i+1}</b><br>${orderedAddresses[i]}`);
 
     markers.push(marker);
   });
 
   // ===== ROUTE =====
-  await drawRealRoute(points);
+  await drawRoute(orderedPoints);
 }
 
 </script>
