@@ -1,38 +1,97 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Leaflet Map</title>
+  <title>Map tìm địa chỉ</title>
 
-  <!-- CSS Leaflet -->
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
   <style>
-    #map { height: 500px; }
+    body { font-family: Arial; }
+    #map { height: 500px; margin-top: 10px; }
+    input { width: 300px; padding: 5px; }
+    button { padding: 6px 10px; }
   </style>
 </head>
+
 <body>
 
-<h3>Map Leaflet (Free)</h3>
+<h3>Map tìm địa chỉ (RURTLE_htl_CODE)</h3>
+
+<input id="address" placeholder="Nhập địa chỉ (vd: Times City Hà Nội)">
+<button onclick="searchLocation()">Tìm</button>
+
 <div id="map"></div>
 
-<!-- JS Leaflet -->
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-// 1. Tạo map (Hà Nội)
+// ===== 1. KHỞI TẠO MAP =====
 var map = L.map('map').setView([21.0285, 105.8542], 13);
 
-// 2. Thêm nền bản đồ (OpenStreetMap)
+// ===== 2. LOAD BẢN ĐỒ =====
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap'
 }).addTo(map);
 
-// 3. Thêm marker
-L.marker([21.0285, 105.8542])
+// ===== 3. MARKER BAN ĐẦU =====
+var currentMarker = L.marker([21.0285, 105.8542])
   .addTo(map)
   .bindPopup("Trung tâm Hà Nội")
   .openPopup();
 
+// ===== 4. HÀM TÌM ĐỊA CHỈ =====
+async function searchLocation() {
+  const address = document.getElementById("address").value;
+
+  if (!address) {
+    alert("Vui lòng nhập địa chỉ");
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      "https://nominatim.openstreetmap.org/search?format=json&q=" 
+      + encodeURIComponent(address)
+    );
+
+    const data = await res.json();
+
+    if (data.length === 0) {
+      alert("Không tìm thấy địa chỉ");
+      return;
+    }
+
+    const lat = data[0].lat;
+    const lon = data[0].lon;
+
+    // Di chuyển map
+    map.setView([lat, lon], 16);
+
+    // Xóa marker cũ
+    if (currentMarker) {
+      map.removeLayer(currentMarker);
+    }
+
+    // Thêm marker mới
+    currentMarker = L.marker([lat, lon])
+      .addTo(map)
+      .bindPopup(address)
+      .openPopup();
+
+  } catch (err) {
+    console.error(err);
+    alert("Lỗi khi tìm địa chỉ");
+  }
+}
+
+// ===== 5. NHẤN ENTER ĐỂ TÌM =====
+document.getElementById("address").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") {
+    searchLocation();
+  }
+});
 </script>
 
 </body>
