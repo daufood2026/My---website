@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Map tìm địa chỉ (by_htl_Turtle)</title>
+  <title>Route giao hàng (by_turtle)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -15,7 +15,7 @@
 
 <body>
 
-<h3>🚚 Map tìm địa chỉ (by_htl_Turtle)</h3>
+<h3>🚚 Route giao hàng (by_turlte)</h3>
 
 <input id="addr1" placeholder="Điểm 1"><br>
 <input id="addr2" placeholder="Điểm 2"><br>
@@ -48,6 +48,43 @@ async function geocode(address) {
   if (data.length === 0) return null;
 
   return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+}
+
+// ===== DISTANCE (simple sort) =====
+function distance(a, b) {
+  return Math.sqrt(
+    Math.pow(a[0] - b[0], 2) +
+    Math.pow(a[1] - b[1], 2)
+  );
+}
+
+// ===== VẼ ROUTE THEO ĐƯỜNG THẬT =====
+async function drawRealRoute(points) {
+
+  const coords = points.map(p => p[1] + "," + p[0]).join(";");
+
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (!data.routes || data.routes.length === 0) {
+    alert("Không vẽ được route");
+    return;
+  }
+
+  const route = data.routes[0].geometry;
+
+  // xóa route cũ
+  if (routeLine) {
+    map.removeLayer(routeLine);
+  }
+
+  routeLine = L.geoJSON(route, {
+    style: { color: 'blue', weight: 5 }
+  }).addTo(map);
+
+  map.fitBounds(routeLine.getBounds());
 }
 
 // ===== BUILD ROUTE =====
@@ -83,7 +120,7 @@ async function buildRoute() {
     points.push(p);
   }
 
-  // ===== SORT GẦN → XA (đơn giản) =====
+  // ===== SORT GẦN → XA =====
   const start = points[0];
 
   points.sort((a, b) => {
@@ -92,7 +129,7 @@ async function buildRoute() {
     return da - db;
   });
 
-  // ===== MARKER + SỐ THỨ TỰ =====
+  // ===== MARKER + THỨ TỰ =====
   points.forEach((p, i) => {
     const marker = L.marker(p)
       .addTo(map)
@@ -102,18 +139,8 @@ async function buildRoute() {
     markers.push(marker);
   });
 
-  // ===== VẼ ĐƯỜNG =====
-  routeLine = L.polyline(points, { color: 'blue' }).addTo(map);
-
-  map.fitBounds(routeLine.getBounds());
-}
-
-// ===== TÍNH KHOẢNG CÁCH =====
-function distance(a, b) {
-  return Math.sqrt(
-    Math.pow(a[0] - b[0], 2) +
-    Math.pow(a[1] - b[1], 2)
-  );
+  // ===== ROUTE REAL =====
+  await drawRealRoute(points);
 }
 
 </script>
