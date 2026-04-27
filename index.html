@@ -8,26 +8,48 @@
   <style>
     body { font-family: Arial; }
     #map { height: 500px; margin-top: 10px; }
+
     input { width: 300px; padding: 5px; margin: 3px; }
     button { padding: 6px 10px; margin: 5px; }
+
+    #info {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    /* marker số */
+    .number-marker {
+      background: #007bff;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      width: 30px;
+      height: 30px;
+      font-weight: bold;
+    }
   </style>
 </head>
 
 <body>
 
-<h3>🚚 Route giao hàng (by_turlte)</h3>
+<h3>🚚 Route giao hàng (by_turtle)</h3>
 
 <input id="addr1" placeholder="Điểm 1"><br>
 <input id="addr2" placeholder="Điểm 2"><br>
 <input id="addr3" placeholder="Điểm 3"><br>
+<input id="addr3" placeholder="Điểm 4htl"><br>
 
 <button onclick="buildRoute()">Vẽ route</button>
+
+<div id="info">Tổng quãng đường: 0 km</div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
+
 // ===== MAP =====
 var map = L.map('map').setView([21.0285, 105.8542], 12);
 
@@ -50,7 +72,7 @@ async function geocode(address) {
   return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
 }
 
-// ===== DISTANCE (simple sort) =====
+// ===== DISTANCE SORT =====
 function distance(a, b) {
   return Math.sqrt(
     Math.pow(a[0] - b[0], 2) +
@@ -58,7 +80,16 @@ function distance(a, b) {
   );
 }
 
-// ===== VẼ ROUTE THEO ĐƯỜNG THẬT =====
+// ===== ICON SỐ =====
+function createNumberIcon(number) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="number-marker">${number}</div>`,
+    iconSize: [30, 30]
+  });
+}
+
+// ===== ROUTE REAL =====
 async function drawRealRoute(points) {
 
   const coords = points.map(p => p[1] + "," + p[0]).join(";");
@@ -73,21 +104,23 @@ async function drawRealRoute(points) {
     return;
   }
 
-  const route = data.routes[0].geometry;
+  const route = data.routes[0];
 
-  // xóa route cũ
-  if (routeLine) {
-    map.removeLayer(routeLine);
-  }
+  // VẼ LINE
+  if (routeLine) map.removeLayer(routeLine);
 
-  routeLine = L.geoJSON(route, {
+  routeLine = L.geoJSON(route.geometry, {
     style: { color: 'blue', weight: 5 }
   }).addTo(map);
 
   map.fitBounds(routeLine.getBounds());
+
+  // ===== HIỂN THỊ KM =====
+  const km = (route.distance / 1000).toFixed(2);
+  document.getElementById("info").innerText = "Tổng quãng đường: " + km + " km";
 }
 
-// ===== BUILD ROUTE =====
+// ===== BUILD =====
 async function buildRoute() {
 
   const inputs = [
@@ -105,9 +138,7 @@ async function buildRoute() {
   markers.forEach(m => map.removeLayer(m));
   markers = [];
 
-  if (routeLine) {
-    map.removeLayer(routeLine);
-  }
+  if (routeLine) map.removeLayer(routeLine);
 
   let points = [];
 
@@ -120,26 +151,23 @@ async function buildRoute() {
     points.push(p);
   }
 
-  // ===== SORT GẦN → XA =====
+  // SORT
   const start = points[0];
 
   points.sort((a, b) => {
-    const da = distance(start, a);
-    const db = distance(start, b);
-    return da - db;
+    return distance(start, a) - distance(start, b);
   });
 
-  // ===== MARKER + THỨ TỰ =====
+  // MARKER SỐ
   points.forEach((p, i) => {
-    const marker = L.marker(p)
-      .addTo(map)
-      .bindPopup("Điểm " + (i + 1))
-      .openPopup();
+    const marker = L.marker(p, {
+      icon: createNumberIcon(i + 1)
+    }).addTo(map);
 
     markers.push(marker);
   });
 
-  // ===== ROUTE REAL =====
+  // ROUTE
   await drawRealRoute(points);
 }
 
