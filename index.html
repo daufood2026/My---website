@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Route giao hàng (by_turtle)</title>
+  <title>Route giao hàng by ĐậuHoàng</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -9,17 +9,26 @@
     body { font-family: Arial; }
     #map { height: 500px; margin-top: 10px; }
 
-    input { width: 300px; padding: 5px; margin: 3px; }
-    button { padding: 6px 10px; margin: 5px; }
+    input {
+      width: 320px;
+      padding: 6px;
+      margin: 4px;
+      display: block;
+    }
+
+    button {
+      padding: 6px 12px;
+      margin: 5px;
+      cursor: pointer;
+    }
 
     #info {
       margin-top: 10px;
       font-weight: bold;
     }
 
-    /* marker số */
     .number-marker {
-      background: #007bff;
+      background: red;
       color: white;
       border-radius: 50%;
       text-align: center;
@@ -27,19 +36,18 @@
       width: 30px;
       height: 30px;
       font-weight: bold;
+      border: 2px solid white;
     }
   </style>
 </head>
 
 <body>
 
-<h3>🚚 Route giao hàng (by_turtle)</h3>
+<h3>🚚 Route giao hàng (by ĐậuHoàng)</h3>
 
-<input id="addr1" placeholder="Điểm 1"><br>
-<input id="addr2" placeholder="Điểm 2"><br>
-<input id="addr3" placeholder="Điểm 3"><br>
-<input id="addr3" placeholder="Điểm 4htl"><br>
+<div id="inputs"></div>
 
+<button onclick="addPoint()">+ Thêm điểm</button>
 <button onclick="buildRoute()">Vẽ route</button>
 
 <div id="info">Tổng quãng đường: 0 km</div>
@@ -59,6 +67,21 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 let markers = [];
 let routeLine;
+let inputCount = 0;
+
+// ===== ADD INPUT =====
+function addPoint() {
+  inputCount++;
+  const input = document.createElement("input");
+  input.placeholder = "Điểm " + inputCount;
+  input.className = "point-input";
+  document.getElementById("inputs").appendChild(input);
+}
+
+// tạo sẵn 3 điểm
+addPoint();
+addPoint();
+addPoint();
 
 // ===== GEOCODE =====
 async function geocode(address) {
@@ -72,14 +95,6 @@ async function geocode(address) {
   return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
 }
 
-// ===== DISTANCE SORT =====
-function distance(a, b) {
-  return Math.sqrt(
-    Math.pow(a[0] - b[0], 2) +
-    Math.pow(a[1] - b[1], 2)
-  );
-}
-
 // ===== ICON SỐ =====
 function createNumberIcon(number) {
   return L.divIcon({
@@ -89,7 +104,7 @@ function createNumberIcon(number) {
   });
 }
 
-// ===== ROUTE REAL =====
+// ===== VẼ ROUTE THẬT =====
 async function drawRealRoute(points) {
 
   const coords = points.map(p => p[1] + "," + p[0]).join(";");
@@ -106,7 +121,6 @@ async function drawRealRoute(points) {
 
   const route = data.routes[0];
 
-  // VẼ LINE
   if (routeLine) map.removeLayer(routeLine);
 
   routeLine = L.geoJSON(route.geometry, {
@@ -115,21 +129,23 @@ async function drawRealRoute(points) {
 
   map.fitBounds(routeLine.getBounds());
 
-  // ===== HIỂN THỊ KM =====
+  // ===== KM =====
   const km = (route.distance / 1000).toFixed(2);
-  document.getElementById("info").innerText = "Tổng quãng đường: " + km + " km";
+  document.getElementById("info").innerText =
+    "Tổng quãng đường: " + km + " km";
 }
 
-// ===== BUILD =====
+// ===== BUILD ROUTE =====
 async function buildRoute() {
 
-  const inputs = [
-    document.getElementById("addr1").value,
-    document.getElementById("addr2").value,
-    document.getElementById("addr3").value
-  ].filter(x => x);
+  const inputs = document.querySelectorAll(".point-input");
 
-  if (inputs.length < 2) {
+  let addresses = [];
+  inputs.forEach(i => {
+    if (i.value) addresses.push(i.value);
+  });
+
+  if (addresses.length < 2) {
     alert("Nhập ít nhất 2 điểm");
     return;
   }
@@ -137,12 +153,11 @@ async function buildRoute() {
   // clear cũ
   markers.forEach(m => map.removeLayer(m));
   markers = [];
-
   if (routeLine) map.removeLayer(routeLine);
 
   let points = [];
 
-  for (let addr of inputs) {
+  for (let addr of addresses) {
     const p = await geocode(addr);
     if (!p) {
       alert("Không tìm thấy: " + addr);
@@ -151,23 +166,21 @@ async function buildRoute() {
     points.push(p);
   }
 
-  // SORT
-  const start = points[0];
-
-  points.sort((a, b) => {
-    return distance(start, a) - distance(start, b);
-  });
-
-  // MARKER SỐ
+  // ===== MARKER + POPUP =====
   points.forEach((p, i) => {
     const marker = L.marker(p, {
       icon: createNumberIcon(i + 1)
-    }).addTo(map);
+    })
+    .addTo(map)
+    .bindPopup(`
+      <b>🚚 Điểm ${i + 1}</b><br>
+      📍 ${addresses[i]}
+    `);
 
     markers.push(marker);
   });
 
-  // ROUTE
+  // ===== ROUTE =====
   await drawRealRoute(points);
 }
 
